@@ -8,6 +8,7 @@ import common from '../../common';
 import { preenUserHistory } from './preening';
 import { revealMysteryItems } from './payments/subscriptions';
 import { model as UserHistory } from '../models/userHistory';
+import { purgeExpiredCalendars } from './tasks/utils';
 
 const CRON_SAFE_MODE = nconf.get('CRON_SAFE_MODE') === 'true';
 const CRON_SEMI_SAFE_MODE = nconf.get('CRON_SEMI_SAFE_MODE') === 'true';
@@ -190,6 +191,7 @@ export async function cron (options = {}) {
   let todoTally = 0;
   // make uncompleted To Do's redder (further incentive to complete them)
   tasksByType.todos.forEach(task => {
+    if (task.isCalendar) return; // calendars are not scored; they expire by date
     if (
       task.completed
       || (task.group.assignedDate
@@ -451,6 +453,15 @@ export async function cronWrapper (req, res) {
       'challenge.id': { $exists: false },
       'group.id': { $exists: false },
     }).exec();
+
+    // Calendar items: delete the day after their set date
+    const purgedCalendarIds = await purgeExpiredCalendars({ userId: user._id, now });
+    if (purgedCalendarIds.length) {
+      const purgedSet = new Set(purgedCalendarIds.map(String));
+      user.tasksOrder.todos = user.tasksOrder.todos
+        .filter(id => !purgedSet.has(String(id)));
+      user.markModified('tasksOrder.todos');
+    }
 
     const tasks = await Tasks.Task.find({
       userId: user._id,

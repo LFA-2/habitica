@@ -4,8 +4,46 @@ import {
   BadRequest,
 } from '../errors';
 import shared from '../../../common';
+import * as Tasks from '../../models/task';
 
 export const requiredGroupFields = '_id leader tasksOrder name';
+
+/**
+ * Delete calendar items whose date is before today (kept through their set day,
+ * removed starting the day after).
+ * Returns the deleted task ids.
+ */
+export async function purgeExpiredCalendars ({
+  userId,
+  groupId,
+  groupIds,
+  now = new Date(),
+} = {}) {
+  const cutoff = moment(now).startOf('day').toDate();
+  const query = {
+    isCalendar: true,
+    date: { $lt: cutoff },
+  };
+
+  const ownerClauses = [];
+  if (userId) ownerClauses.push({ userId });
+  if (groupId) ownerClauses.push({ 'group.id': groupId });
+  if (groupIds && groupIds.length > 0) {
+    ownerClauses.push({ 'group.id': { $in: groupIds } });
+  }
+  if (ownerClauses.length === 0) return [];
+  if (ownerClauses.length === 1) {
+    Object.assign(query, ownerClauses[0]);
+  } else {
+    query.$or = ownerClauses;
+  }
+
+  const expired = await Tasks.Task.find(query).select('_id').lean().exec();
+  if (!expired.length) return [];
+  const ids = expired.map(t => t._id);
+  await Tasks.Task.deleteMany({ _id: { $in: ids } }).exec();
+  return ids;
+}
 
 export async function validateTaskAlias (tasks, res) {
   const tasksWithAliases = tasks.filter(task => task.alias);

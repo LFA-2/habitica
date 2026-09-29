@@ -214,7 +214,7 @@ export default {
     return {
       openCreateBtn: false,
       searchId: '',
-      columns: ['todo', 'calendar'],
+      columns: ['todo', 'calendar', 'reward'],
       tasksByType: {
         habit: [],
         daily: [],

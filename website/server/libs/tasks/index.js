@@ -9,6 +9,7 @@ import {
   validateTaskAlias,
   requiredGroupFields,
   normalizeDailyStartDate,
+  purgeExpiredCalendars,
 } from './utils';
 import { model as Challenge } from '../../models/challenge';
 import { model as Group } from '../../models/group';
@@ -239,6 +240,16 @@ async function getTasks (req, res, options = {}) {
     }];
   }
 
+  // Drop calendar items the day after their date (personal and/or group board).
+  // tasksOrder pruning below will drop any removed personal calendar ids.
+  if (!challenge) {
+    await purgeExpiredCalendars({
+      userId: group ? undefined : user._id,
+      groupId: group ? group._id : undefined,
+      groupIds: upgradedGroupIds,
+    });
+  }
+
   const projection = {};
   if (!history) {
     projection.history = 0;
@@ -415,6 +426,9 @@ async function handleTeamTask (task, delta, direction) {
  * @return Response Data
 */
 async function scoreTask (user, task, direction, req, res) {
+  if (task.isCalendar) {
+    throw new BadRequest('Calendar items cannot be scored.');
+  }
   if (task.type === 'daily' || task.type === 'todo') {
     if (task.group.id && task.group.assignedUsersDetail
       && task.group.assignedUsersDetail[user._id]

@@ -56,9 +56,9 @@
             ></div>
           </div>
         </div>
-        <!-- Dailies and todos left side control-->
+        <!-- Dailies and todos left side control (calendars are not scoreable) -->
         <div
-          v-if="task.type === 'daily' || task.type === 'todo'"
+          v-if="(task.type === 'daily' || task.type === 'todo') && !task.isCalendar"
           class="left-control d-flex justify-content-center"
           :class="[{
             'control-bottom-box': task.group.id && !isOpenTask,
@@ -633,6 +633,10 @@
       border-top-left-radius: 4px;
       border-bottom-left-radius: 4px;
     }
+
+    &.calendar-content {
+      border-radius: 4px;
+    }
   }
 
   .checklist.isOpen {
@@ -1026,6 +1030,10 @@ export default {
         classes.push('reward-content');
       }
 
+      if (this.task.isCalendar) {
+        classes.push('calendar-content');
+      }
+
       return classes;
     },
     showStreak () {
@@ -1188,6 +1196,7 @@ export default {
       setTimeout(() => this.$root.$emit('castEnd', task, 'task', e), 0);
     },
     async score (direction) {
+      if (this.task.isCalendar) return;
       if (this.showTaskLockIcon) return;
       if (this.task.type === 'habit' && !this.task[direction]) return;
       if (
