@@ -735,7 +735,7 @@ api.scoreTask = {
   middlewares: [authWithHeaders({
     userFieldsToInclude: ['achievements', 'guilds', 'items.eggs', 'items.food',
       'items.gear.equipped', 'items.hatchingPotions', 'items.lastDrop', 'items.quests', 'party',
-      'purchased.plan', 'stats', 'tasksOrder', 'webhooks'],
+      'profile.name', 'purchased.plan', 'stats', 'tasksOrder', 'webhooks'],
   })],
   async handler (req, res) {
     // Parameters are validated in scoreTasks

@@ -56,6 +56,13 @@ export default function taskDefaults (task, user) {
     });
   }
 
+  if (task.type === 'todo') {
+    defaults(task, {
+      isCalendar: false,
+      calendarTime: '',
+    });
+  }
+
   if (task.type === 'habit') {
     defaults(task, {
       up: true,

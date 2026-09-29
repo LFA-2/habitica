@@ -5,6 +5,26 @@ import omit from 'lodash/omit';
 import { loadAsyncResource } from '@/libs/asyncResource';
 import { CONSTANTS, getLocalSetting, setLocalSetting } from '@/libs/userlocalManager';
 
+// Calendar items are stored as todos with isCalendar=true; client keeps a separate list.
+function clientListKey (task) {
+  if (task.type === 'todo' && task.isCalendar) return 'calendars';
+  return `${task.type}s`;
+}
+
+function orderListKey (task) {
+  return `${task.type}s`;
+}
+
+function sortCalendars (calendars) {
+  calendars.sort((a, b) => {
+    const dayA = a.date ? new Date(a.date).getTime() : Number.MAX_SAFE_INTEGER;
+    const dayB = b.date ? new Date(b.date).getTime() : Number.MAX_SAFE_INTEGER;
+    if (dayA !== dayB) return dayA - dayB;
+    return String(a.calendarTime || '').localeCompare(String(b.calendarTime || ''));
+  });
+  return calendars;
+}
+
 export function fetchUserTasks (store, options = {}) {
   return loadAsyncResource({
     store,
@@ -31,9 +51,17 @@ export async function fetchCompletedTodos (store) {
     const response = await axios.get('/api/v4/tasks/user?type=completedTodos');
     const completedTodos = response.data.data;
     const tasks = store.state.tasks.data;
-    // Remove existing completed todos
+    // Remove existing completed todos / calendars, then re-add split by isCalendar
     tasks.todos = tasks.todos.filter(t => !t.completed);
-    tasks.todos.push(...completedTodos);
+    tasks.calendars = (tasks.calendars || []).filter(t => !t.completed);
+    completedTodos.forEach(t => {
+      if (t.isCalendar) {
+        tasks.calendars.push(t);
+      } else {
+        tasks.todos.push(t);
+      }
+    });
+    sortCalendars(tasks.calendars);
 
     store.state.completedTodosStatus = 'LOADED';
   }
@@ -42,6 +70,9 @@ export async function fetchCompletedTodos (store) {
 export async function clearCompletedTodos (store) {
   await axios.post('/api/v4/tasks/clearCompletedTodos');
   store.state.tasks.data.todos = store.state.tasks.data.todos.filter(task => !task.completed);
+  if (store.state.tasks.data.calendars) {
+    store.state.tasks.data.calendars = store.state.tasks.data.calendars.filter(task => !task.completed);
+  }
 }
 
 export function order (store, [rawTasks, tasksOrder]) {
@@ -49,14 +80,25 @@ export function order (store, [rawTasks, tasksOrder]) {
     habits: [],
     dailys: [],
     todos: [],
+    calendars: [],
     rewards: [],
   };
 
   rawTasks.forEach(task => {
-    tasks[`${task.type}s`].push(task);
+    if (task.type === 'todo' && task.isCalendar) {
+      tasks.calendars.push(task);
+    } else {
+      tasks[`${task.type}s`].push(task);
+    }
   });
 
   Object.keys(tasks).forEach(type => {
+    // Calendars have no tasksOrder entry; keep date/time sort for display.
+    if (type === 'calendars') {
+      sortCalendars(tasks.calendars);
+      return;
+    }
+
     const tasksOfType = tasks[type];
 
     const orderOfType = tasksOrder[type];
@@ -91,20 +133,27 @@ export async function create (store, createdTask) {
   const payload = Array.isArray(createdTask) ? createdTask : [createdTask];
 
   payload.forEach(t => {
-    const type = `${t.type}s`;
-    const list = store.state.tasks.data[type];
+    const listKey = clientListKey(t);
+    const orderKey = orderListKey(t);
+    if (!store.state.tasks.data[listKey]) {
+      Vue.set(store.state.tasks.data, listKey, []);
+    }
+    const list = store.state.tasks.data[listKey];
 
     sanitizeChecklist(t);
 
     list.unshift(t);
-    store.state.user.data.tasksOrder[type].unshift(t._id);
+    // Server tasksOrder only tracks habit/daily/todo/reward (calendars are todos).
+    if (store.state.user.data.tasksOrder[orderKey]) {
+      store.state.user.data.tasksOrder[orderKey].unshift(t._id);
+    }
   });
 
   const response = await axios.post('/api/v4/tasks/user', payload);
   const data = Array.isArray(response.data.data) ? response.data.data : [response.data.data];
 
   data.forEach(taskRes => {
-    const tasksArr = store.state.tasks.data[`${taskRes.type}s`];
+    const tasksArr = store.state.tasks.data[clientListKey(taskRes)];
     const taskDataIndex = tasksArr.findIndex(t => t._id === taskRes._id);
     if (taskDataIndex !== -1) {
       Vue.set(tasksArr, taskDataIndex, { ...tasksArr[taskDataIndex], ...taskRes });
@@ -122,8 +171,8 @@ export async function create (store, createdTask) {
 
 export async function save (store, editedTask) {
   const taskId = editedTask._id;
-  const { type } = editedTask;
-  const originalTask = store.state.tasks.data[`${type}s`].find(t => t._id === taskId);
+  const listKey = clientListKey(editedTask);
+  const originalTask = store.state.tasks.data[listKey].find(t => t._id === taskId);
 
   sanitizeChecklist(editedTask);
 
@@ -158,15 +207,18 @@ export async function collapseChecklist (store, task) {
 }
 
 export async function destroy (store, task) {
-  const type = `${task.type}s`;
-  const listIndex = store.state.tasks.data[type].findIndex(t => t._id === task._id);
-  const orderIndex = store.state.user.data.tasksOrder[type].indexOf(task._id);
+  const listKey = clientListKey(task);
+  const orderKey = orderListKey(task);
+  const listIndex = store.state.tasks.data[listKey].findIndex(t => t._id === task._id);
+  const orderIndex = store.state.user.data.tasksOrder[orderKey]
+    ? store.state.user.data.tasksOrder[orderKey].indexOf(task._id)
+    : -1;
 
   if (listIndex > -1) {
-    store.state.tasks.data[type].splice(listIndex, 1);
+    store.state.tasks.data[listKey].splice(listIndex, 1);
   }
   if (orderIndex > -1) {
-    store.state.user.data.tasksOrder[type].splice(orderIndex, 1);
+    store.state.user.data.tasksOrder[orderKey].splice(orderIndex, 1);
   }
 
   await axios.delete(`/api/v4/tasks/${task._id}`);
@@ -226,7 +278,7 @@ export async function unlinkOneTask (store, payload) {
   if (!payload.keep) payload.keep = 'keep';
 
   const { task } = payload;
-  const list = store.state.tasks.data[`${task.type}s`];
+  const list = store.state.tasks.data[clientListKey(task)];
   const taskIndex = list.findIndex(t => t._id === task._id);
 
   if (taskIndex > -1) {

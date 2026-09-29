@@ -91,12 +91,12 @@
       <task-column
         v-for="column in columns"
         :key="column"
-        class="col-12 col-md-3"
-        :type="column"
+        class="col-12 col-md-6 col-xl"
+        :type="column === 'calendar' ? 'calendar' : column"
         :task-list-override="tasksByType[column]"
         :group="group"
         :search-text="searchText"
-        :draggable-override="canCreateTasks"
+        :draggable-override="canCreateTasks && column !== 'calendar'"
         @editTask="editTask"
         @taskSummary="taskSummary"
         @loadGroupCompletedTodos="loadGroupCompletedTodos"
@@ -197,6 +197,7 @@ import habitIcon from '@/assets/svg/habit.svg?raw';
 import dailyIcon from '@/assets/svg/daily.svg?raw';
 import todoIcon from '@/assets/svg/todo.svg?raw';
 import rewardIcon from '@/assets/svg/reward.svg?raw';
+import calendarIcon from '@/assets/svg/calendar.svg?raw';
 
 import { mapState } from '@/libs/store';
 
@@ -213,11 +214,12 @@ export default {
     return {
       openCreateBtn: false,
       searchId: '',
-      columns: ['habit', 'daily', 'todo', 'reward'],
+      columns: ['todo', 'calendar'],
       tasksByType: {
         habit: [],
         daily: [],
         todo: [],
+        calendar: [],
         reward: [],
       },
       editingTask: {},
@@ -236,6 +238,7 @@ export default {
         habit: habitIcon,
         daily: dailyIcon,
         todo: todoIcon,
+        calendar: calendarIcon,
         reward: rewardIcon,
       }),
       editingTags: false,
@@ -337,6 +340,7 @@ export default {
         habit: [],
         daily: [],
         todo: [],
+        calendar: [],
         reward: [],
       };
 
@@ -345,7 +349,18 @@ export default {
       });
 
       tasks.forEach(task => {
-        this.tasksByType[task.type].push(task);
+        if (task.type === 'todo' && task.isCalendar) {
+          this.tasksByType.calendar.push(task);
+        } else {
+          this.tasksByType[task.type].push(task);
+        }
+      });
+
+      this.tasksByType.calendar.sort((a, b) => {
+        const dayA = a.date ? new Date(a.date).getTime() : Number.MAX_SAFE_INTEGER;
+        const dayB = b.date ? new Date(b.date).getTime() : Number.MAX_SAFE_INTEGER;
+        if (dayA !== dayB) return dayA - dayB;
+        return String(a.calendarTime || '').localeCompare(String(b.calendarTime || ''));
       });
 
       if (this.editingTask && this.editingTask.completed) {
@@ -373,6 +388,16 @@ export default {
       });
 
       completedTodos.forEach(task => {
+        if (task.isCalendar) {
+          const existingTaskIndex = findIndex(
+            this.tasksByType.calendar,
+            item => item._id === task._id,
+          );
+          if (existingTaskIndex === -1) {
+            this.tasksByType.calendar.push(task);
+          }
+          return;
+        }
         const existingTaskIndex = findIndex(this.tasksByType.todo, todo => todo._id === task._id);
         if (existingTaskIndex === -1) {
           this.tasksByType.todo.push(task);
@@ -382,7 +407,17 @@ export default {
     createTask (type) {
       this.openCreateBtn = false;
       this.taskFormPurpose = 'create';
-      this.creatingTask = taskDefaults({ type, text: '' }, this.user);
+      if (type === 'calendar') {
+        this.creatingTask = taskDefaults({
+          type: 'todo',
+          text: '',
+          isCalendar: true,
+          calendarTime: '',
+          date: moment().startOf('day').toDate(),
+        }, this.user);
+      } else {
+        this.creatingTask = taskDefaults({ type, text: '' }, this.user);
+      }
       this.workingTask = this.creatingTask;
       // Necessary otherwise the first time the modal is not rendered
       Vue.nextTick(() => {
@@ -390,8 +425,9 @@ export default {
       });
     },
     taskDestroyed (task) {
-      const index = findIndex(this.tasksByType[task.type], taskItem => taskItem._id === task._id);
-      this.tasksByType[task.type].splice(index, 1);
+      const columnKey = task.isCalendar ? 'calendar' : task.type;
+      const index = findIndex(this.tasksByType[columnKey], taskItem => taskItem._id === task._id);
+      if (index !== -1) this.tasksByType[columnKey].splice(index, 1);
     },
     cancelTaskModal () {
       this.editingTask = null;
@@ -445,6 +481,9 @@ export default {
       }
       this.$store.dispatch('user:set', {
         'preferences.tasks.mirrorGroupTasks': groupsToMirror,
+      }).then(() => {
+        // Reload personal board tasks so mirrored calendars land in the Calendar column.
+        this.$store.dispatch('tasks:fetchUserTasks', { forceLoad: true });
       });
     },
   },

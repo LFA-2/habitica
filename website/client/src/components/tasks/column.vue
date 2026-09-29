@@ -337,6 +337,12 @@
     color: $gray-300;
   }
 
+  .icon-calendar {
+    width: 20px;
+    height: 20px;
+    color: $gray-300;
+  }
+
   .icon-reward {
     width: 26px;
     height: 20px;
@@ -373,6 +379,7 @@ import habitIcon from '@/assets/svg/habit.svg?raw';
 import dailyIcon from '@/assets/svg/daily.svg?raw';
 import todoIcon from '@/assets/svg/todo.svg?raw';
 import rewardIcon from '@/assets/svg/reward.svg?raw';
+import calendarIcon from '@/assets/svg/calendar.svg?raw';
 import { EVENTS } from '@/libs/events';
 
 export default {
@@ -409,6 +416,7 @@ export default {
       habit: habitIcon,
       daily: dailyIcon,
       todo: todoIcon,
+      calendar: calendarIcon,
       reward: rewardIcon,
     });
 
@@ -510,7 +518,9 @@ export default {
     if (this.challenge) {
       this.activateFilter(this.type);
     } else {
-      this.activateFilter(this.type, this.user.preferences.tasks.activeFilter[this.type], true);
+      const savedFilter = this.user.preferences.tasks.activeFilter
+        && this.user.preferences.tasks.activeFilter[this.type];
+      this.activateFilter(this.type, savedFilter, true);
     }
   },
   mounted () {
@@ -633,6 +643,17 @@ export default {
       if (!text) return false;
 
       const tasks = text.split('\n').reverse().filter(taskText => (!!taskText)).map(taskText => {
+        if (this.type === 'calendar') {
+          const calendarTask = taskDefaults({
+            type: 'todo',
+            text: taskText,
+            isCalendar: true,
+            calendarTime: '',
+            date: new Date(),
+          }, this.user);
+          if (this.isUser) calendarTask.tags = this.selectedTags.slice();
+          return calendarTask;
+        }
         const task = taskDefaults({ type: this.type, text: taskText }, this.user);
         if (this.isUser) task.tags = this.selectedTags.slice();
         return task;
@@ -679,7 +700,8 @@ export default {
 
       this.activeFilter = getActiveFilter(type, filter, this.challenge);
 
-      if (!skipSave && !this.challenge) {
+      // Don't persist filter prefs for the custom calendar column (not a core task type).
+      if (!skipSave && !this.challenge && type !== 'calendar') {
         const propertyToUpdate = `preferences.tasks.activeFilter.${type}`;
         this.$store.dispatch('user:set', { [propertyToUpdate]: filter });
       }
@@ -799,6 +821,8 @@ export default {
       this.$emit('taskDestroyed', task);
     },
     canBeDragged () {
+      // Calendar is sorted by date/time and has no tasksOrder entry.
+      if (this.type === 'calendar') return false;
       return this.isUser
         || this.draggableOverride;
     },

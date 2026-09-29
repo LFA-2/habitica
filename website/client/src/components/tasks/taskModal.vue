@@ -255,7 +255,7 @@
           </button>
         </div>
         <template
-          v-if="task.type !== 'reward'"
+          v-if="task.type !== 'reward' && !task.isCalendar"
         >
           <div class="d-flex mt-3 align-items-center">
             <lockable-label
@@ -274,7 +274,33 @@
           />
         </template>
         <div
-          v-if="task.type === 'todo' && (!challengeAccessRequired || task.date)"
+          v-if="task.isCalendar"
+          class="option mt-3"
+        >
+          <div class="form-group">
+            <label class="mb-1">{{ $t('calendarDate') }} *</label>
+            <datepicker
+              :date.sync="task.date"
+              :highlighted="calendarHighlights"
+              :clear-button="false"
+            />
+          </div>
+        </div>
+        <div
+          v-if="task.isCalendar"
+          class="option mt-3"
+        >
+          <div class="form-group">
+            <label class="mb-1">{{ $t('calendarTimeOptional') }}</label>
+            <input
+              v-model="task.calendarTime"
+              class="form-control"
+              type="time"
+            >
+          </div>
+        </div>
+        <div
+          v-if="task.type === 'todo' && !task.isCalendar && (!challengeAccessRequired || task.date)"
           class="option mt-3"
         >
           <div class="form-group">
@@ -1401,7 +1427,9 @@ export default {
     },
     // endregion advanced settings
     checklistEnabled () {
-      return ['daily', 'todo'].indexOf(this.task.type) > -1 && !this.isOriginalChallengeTask;
+      return ['daily', 'todo'].indexOf(this.task.type) > -1
+        && !this.isOriginalChallengeTask
+        && !this.task.isCalendar;
     },
     isChallengeTask () {
       return Boolean(this.task.challenge && this.task.challenge.id);
@@ -1421,10 +1449,12 @@ export default {
       return this.purpose !== 'create' && this.canDeleteTask(this.task);
     },
     canSave () {
-      return this.task && this.task.text && this.task.text.length > 0;
+      if (!this.task || !this.task.text || this.task.text.length === 0) return false;
+      if (this.task.isCalendar && !this.task.date) return false;
+      return true;
     },
     title () {
-      const type = this.$t(this.task.type);
+      const type = this.task.isCalendar ? this.$t('calendar') : this.$t(this.task.type);
       return this.$t(this.purpose === 'edit' ? 'editATask' : 'createTask', { type });
     },
     repeatSuffix () {

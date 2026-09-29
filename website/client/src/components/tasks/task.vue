@@ -1127,10 +1127,16 @@ export default {
       return this.calculateTimeTillDue().asDays() < 0;
     },
     formatDueDate () {
+      let dateLabel;
       if (moment().isSame(this.task.date, 'day')) {
-        return this.$t('today');
+        dateLabel = this.$t('today');
+      } else {
+        dateLabel = moment(this.task.date).format(this.user.preferences.dateFormat.toUpperCase());
       }
-      return moment(this.task.date).format(this.user.preferences.dateFormat.toUpperCase());
+      if (this.task.isCalendar && this.task.calendarTime) {
+        return `${dateLabel} ${this.task.calendarTime}`;
+      }
+      return dateLabel;
     },
     edit (e, task) {
       if (this.isRunningYesterdailies) return;

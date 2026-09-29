@@ -27,6 +27,21 @@ const taskFilters = {
       { label: 'complete2', filterFn: t => t.completed },
     ],
   },
+  calendar: {
+    label: 'calendars',
+    filters: [
+      {
+        label: 'all',
+        filterFn: () => true,
+        default: true,
+        sort: t => {
+          const day = t.date ? new Date(t.date).getTime() : 0;
+          const time = t.calendarTime || '';
+          return `${day}-${time}`;
+        },
+      },
+    ],
+  },
   reward: {
     label: 'rewards',
     filters: [
@@ -55,6 +70,20 @@ const challengeFilters = {
     filters: [
       { label: 'all', filterFn: () => true, default: true }, // active
       { label: 'scheduled', filterFn: t => t.date, sort: t => t.date },
+    ],
+  },
+  calendar: {
+    label: 'calendars',
+    filters: [
+      {
+        label: 'all',
+        filterFn: () => true,
+        default: true,
+        sort: t => {
+          const day = t.date ? new Date(t.date).getTime() : 0;
+          return `${day}-${t.calendarTime || ''}`;
+        },
+      },
     ],
   },
   reward: {

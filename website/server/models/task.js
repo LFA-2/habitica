@@ -150,6 +150,9 @@ export const TaskSchema = new Schema({
   reminders: [reminderSchema],
 
   byHabitica: { $type: Boolean, default: false }, // Flag of Tasks that were created by Habitica
+  // Group calendar events (stored as todos; ignored for other types)
+  isCalendar: { $type: Boolean, default: false },
+  calendarTime: { $type: String, default: '' },
 }, _.defaults({
   minimize: false, // So empty objects are returned
   strict: true,
@@ -414,7 +417,7 @@ export const daily = Task.discriminator('daily', DailySchema);
 
 export const TodoSchema = new Schema(_.defaults({
   dateCompleted: Date,
-  date: Date, // due date for todos
+  date: Date, // due date for todos / event date for calendar items
 }, dailyTodoSchema()), subDiscriminatorOptions);
 export const todo = Task.discriminator('todo', TodoSchema);
 

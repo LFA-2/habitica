@@ -27,6 +27,7 @@ import shared from '../../../common';
 import { taskScoredWebhook } from '../webhook';
 
 import logger from '../logger';
+import { applyImmediateQuestProgress } from '../quests/applyImmediateProgress';
 
 /**
  * Creates tasks for a user, challenge or group.
@@ -602,6 +603,13 @@ export async function scoreTasks (user, taskScorings, req, res) {
   }
 
   await Promise.all(savePromises);
+
+  // Settle quest progress now (boss HP / collection) instead of waiting for next-day cron.
+  try {
+    await applyImmediateQuestProgress(user);
+  } catch (e) {
+    logger.error(e, 'Error applying immediate quest progress after scoring tasks');
+  }
 
   return returnDatas.map(data => {
     // Handle challenge and group tasks tasks here because the task must have been saved first

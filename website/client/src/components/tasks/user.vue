@@ -237,7 +237,7 @@
         <task-column
           v-for="column in columns"
           :key="column"
-          class="col-lg-3 col-md-6"
+          class="col-12 col-md-6 col-xl"
           :type="column"
           :is-user="true"
           :search-text="searchTextThrottled"
@@ -424,6 +424,7 @@ import deleteIcon from '@/assets/svg/delete.svg?raw';
 import habitIcon from '@/assets/svg/habit.svg?raw';
 import dailyIcon from '@/assets/svg/daily.svg?raw';
 import todoIcon from '@/assets/svg/todo.svg?raw';
+import calendarIcon from '@/assets/svg/calendar.svg?raw';
 import rewardIcon from '@/assets/svg/reward.svg?raw';
 import dragIcon from '@/assets/svg/drag_indicator.svg?raw';
 
@@ -448,7 +449,7 @@ export default {
   mixins: [autoCompleteHelperMixin],
   data () {
     return {
-      columns: ['habit', 'daily', 'todo', 'reward'],
+      columns: ['habit', 'daily', 'todo', 'calendar', 'reward'],
       searchText: null,
       searchTextThrottled: null,
       isFilterPanelOpen: false,
@@ -460,6 +461,7 @@ export default {
         habit: habitIcon,
         daily: dailyIcon,
         todo: todoIcon,
+        calendar: calendarIcon,
         reward: rewardIcon,
         drag: dragIcon,
       }),
@@ -632,7 +634,17 @@ export default {
     },
     createTask (type) {
       this.openCreateBtn = false;
-      this.creatingTask = taskDefaults({ type, text: '' }, this.user);
+      if (type === 'calendar') {
+        this.creatingTask = taskDefaults({
+          type: 'todo',
+          text: '',
+          isCalendar: true,
+          calendarTime: '',
+          date: new Date(),
+        }, this.user);
+      } else {
+        this.creatingTask = taskDefaults({ type, text: '' }, this.user);
+      }
       this.creatingTask.tags = this.selectedTags.slice();
 
       // Necessary otherwise the first time the modal is not rendered

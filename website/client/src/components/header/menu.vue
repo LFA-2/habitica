@@ -237,7 +237,9 @@
               </router-link>
             </div>
           </li>
+          <!-- Temporarily hidden: Challenges (routes/API kept intact) -->
           <li
+            v-if="false"
             class="topbar-item droppable"
             :class="{
               'active': $route.path.startsWith('/challenges')}"
@@ -273,7 +275,9 @@
               </router-link>
             </div>
           </li>
+          <!-- Temporarily hidden: Help (routes/API kept intact) -->
           <li
+            v-if="false"
             class="topbar-item droppable"
             :class="{
               'active': $route.path.startsWith('/help')}"

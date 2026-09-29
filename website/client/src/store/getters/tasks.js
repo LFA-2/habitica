@@ -20,8 +20,25 @@ export function getTagsByIdList (store) {
   };
 }
 
+function getAssigneeColor (userId) {
+  const colors = ['good', 'better', 'best', 'purple', 'bad', 'worse', 'neutral'];
+  if (!userId) return 'neutral';
+  let hash = 0;
+  const id = String(userId);
+  for (let i = 0; i < id.length; i += 1) {
+    hash = (hash + (id.charCodeAt(i) * (i + 1))) % colors.length;
+  }
+  return colors[hash];
+}
+
 function getTaskColor (task) {
   if (task.type === 'reward' || task.byHabitica) return 'purple';
+
+  // Group todos assigned to exactly one member: color by assignee (stable per user).
+  const assigned = task.group && task.group.assignedUsers;
+  if (task.group && task.group.id && Array.isArray(assigned) && assigned.length === 1) {
+    return getAssigneeColor(assigned[0]);
+  }
 
   const { value } = task;
 
@@ -222,7 +239,10 @@ export function getTaskClasses (store) {
 
 // Returns all list for given task type
 export function getUnfilteredTaskList ({ state }) {
-  return type => state.tasks.data[`${type}s`];
+  return type => {
+    const list = state.tasks.data && state.tasks.data[`${type}s`];
+    return list || [];
+  };
 }
 
 // Returns filtered, sorted, ordered, tag filtered, and search filtered task list
